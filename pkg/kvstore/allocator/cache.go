@@ -118,9 +118,6 @@ func (c *cache) keyToID(key string, deleteInvalid bool) idpool.ID {
 func (c *cache) start(a *Allocator) waitChan {
 	listDone := make(waitChan)
 
-	logger := c.getLogger()
-	logger.Info("Starting to watch allocation changes")
-
 	c.mutex.Lock()
 
 	// start with a fresh nextCache
@@ -131,6 +128,10 @@ func (c *cache) start(a *Allocator) waitChan {
 	c.stopWatchWg.Add(1)
 
 	go func() {
+		<-c.backend.Connected()
+		logger := c.getLogger()
+		logger.Info("Starting to watch allocation changes")
+
 		watcher := c.backend.ListAndWatch(c.prefix, c.prefix, 512)
 
 		for {
