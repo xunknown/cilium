@@ -195,15 +195,11 @@ func createNexthopRoute(link netlink.Link, routerNet *net.IPNet) *netlink.Route 
 // incorrect, it will be replaced with the proper L2 route.
 func replaceNexthopRoute(link netlink.Link, routerNet *net.IPNet) (bool, error) {
 	route := createNexthopRoute(link, routerNet)
-	if lookup(route) == nil {
-		if err := netlink.RouteReplace(route); err != nil {
-			return false, fmt.Errorf("unable to add L2 nexthop route: %s", err)
-		}
-
-		return true, nil
+	if err := netlink.RouteReplace(route); err != nil {
+		return false, fmt.Errorf("unable to add L2 nexthop route: %s", err)
 	}
 
-	return false, nil
+	return true, nil
 }
 
 // deleteNexthopRoute deletes
