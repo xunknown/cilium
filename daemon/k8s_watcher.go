@@ -531,7 +531,7 @@ func (d *Daemon) EnableK8sWatcher(queueSize uint) error {
 		cache.NewListWatchFromClient(k8s.Client().CoreV1().RESTClient(),
 			"endpoints", v1.NamespaceAll,
 			// Don't get any events from kubernetes endpoints.
-			fields.ParseSelectorOrDie("metadata.name!=kube-scheduler,metadata.name!=kube-controller-manager"),
+			fields.ParseSelectorOrDie("metadata.name!=kube-scheduler,metadata.name!=kube-controller-manager,metadata.name!=etcd-operator,metadata.name!=gcp-controller-manager"),
 		),
 		&v1.Endpoints{},
 		0,
