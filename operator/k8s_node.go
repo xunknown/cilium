@@ -48,7 +48,7 @@ func runNodeWatcher() error {
 				if n := k8s.CopyObjToV1Node(obj); n != nil {
 					serNodes.Enqueue(func() error {
 						nodeNew := k8s.ParseNode(n, node.FromKubernetes)
-						ciliumStore.UpdateLocalKeySync(nodeNew)
+						ciliumStore.UpdateKeySync(nodeNew)
 						return nil
 					}, serializer.NoRetry)
 				}
@@ -64,7 +64,7 @@ func runNodeWatcher() error {
 							oldNode := k8s.ParseNode(oldNode, node.FromKubernetes)
 							newNode := k8s.ParseNode(newNode, node.FromKubernetes)
 							ciliumStore.DeleteLocalKey(oldNode)
-							ciliumStore.UpdateLocalKeySync(newNode)
+							ciliumStore.UpdateKeySync(newNode)
 							return nil
 						}, serializer.NoRetry)
 					}
