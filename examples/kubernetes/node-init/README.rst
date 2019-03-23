@@ -13,6 +13,8 @@ The node-init DaemonSet prepares a node to run Cilium, it will:
 
  * Write a Cilium CNI configuration file to `/etc/cni/net.d/04-cilium-cni.conf`
 
+ * Delete all pods managed by kubenet
+
 Requirements
 ------------
 
