@@ -58,6 +58,7 @@ func initClient(module backendModule, opts *ExtraOptions) error {
 func Client() BackendOperations {
 	once.Do(func() {
 		<-defaultClientSet
+		// <-defaultClient.Connected()
 	})
 	return defaultClient
 }
