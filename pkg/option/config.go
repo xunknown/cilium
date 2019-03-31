@@ -433,6 +433,18 @@ const (
 	// SelectiveRegeneration specifies whether only the endpoints which policy
 	// changes select should be regenerated upon policy changes.
 	SelectiveRegeneration = "enable-selective-regeneration"
+
+	// IdentityAllocationMode specifies what mode to use for identity
+	// allocation
+	IdentityAllocationMode = "identity-allocation-mode"
+
+	// IdentityAllocationModeKVstore enables use of a key-value store such
+	// as etcd or consul for identity allocation
+	IdentityAllocationModeKVstore = "kvstore"
+
+	// IdentityAllocationModeCRD enables use of Kubernetes CRDs for
+	// identity allocation
+	IdentityAllocationModeCRD = "crd"
 )
 
 // FQDNS variables
@@ -855,6 +867,10 @@ type DaemonConfig struct {
 	// are regenerated upon every policy change regardless of the scope of the
 	// policy change.
 	SelectiveRegeneration bool
+
+	// IdentityAllocationMode specifies what mode to use for identity
+	// allocation
+	IdentityAllocationMode string
 }
 
 var (
@@ -876,6 +892,7 @@ var (
 		KVStoreOpt:                make(map[string]string),
 		LogOpt:                    make(map[string]string),
 		SelectiveRegeneration:     defaults.SelectiveRegeneration,
+		IdentityAllocationMode:    IdentityAllocationModeKVstore,
 	}
 )
 
@@ -1111,6 +1128,7 @@ func (c *DaemonConfig) Populate() {
 	c.HTTPRetryCount = viper.GetInt(HTTPRetryCount)
 	c.HTTPRetryTimeout = viper.GetInt(HTTPRetryTimeout)
 	c.IPv4ClusterCIDRMaskSize = viper.GetInt(IPv4ClusterCIDRMaskSize)
+	c.IdentityAllocationMode = viper.GetString(IdentityAllocationMode)
 	c.IdentityChangeGracePeriod = viper.GetDuration(IdentityChangeGracePeriod)
 	c.IPv4Range = viper.GetString(IPv4Range)
 	c.IPv4NodeAddr = viper.GetString(IPv4NodeAddr)

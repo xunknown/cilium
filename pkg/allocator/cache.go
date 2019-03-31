@@ -16,8 +16,6 @@ package allocator
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -35,9 +33,9 @@ type idMap map[idpool.ID]AllocatorKey
 type keyMap map[string]idpool.ID
 
 type cache struct {
-	backend  kvstore.BackendOperations
-	prefix   string
-	stopChan chan bool
+	allocator *Allocator
+
+	stopChan chan struct{}
 
 	// mutex protects all cache data structures
 	mutex lock.RWMutex
@@ -61,62 +59,115 @@ type cache struct {
 	// nextKeyCache follows the same logic as nextCache but for keyCache
 	nextKeyCache keyMap
 
+	listDone waitChan
+
 	// stopWatchWg is a wait group that gets conditions added when a
 	// watcher is started with the conditions marked as done when the
 	// watcher has exited
 	stopWatchWg sync.WaitGroup
-
-	// deleteInvalid enables deletion of identities outside of the valid
-	// prefix
-	deleteInvalidPrefixes bool
 }
 
-func newCache(backend kvstore.BackendOperations, prefix string) cache {
+func newCache(a *Allocator) cache {
 	return cache{
-		backend:  backend,
-		prefix:   prefix,
-		cache:    idMap{},
-		keyCache: keyMap{},
-		stopChan: make(chan bool, 1),
+		allocator: a,
+		cache:     idMap{},
+		keyCache:  keyMap{},
+		stopChan:  make(chan struct{}),
 	}
 }
 
 type waitChan chan bool
 
 func (c *cache) getLogger() *logrus.Entry {
-	status, err := c.backend.Status()
+	status, err := c.allocator.backend.Status()
 
 	return log.WithFields(logrus.Fields{
 		"kvstoreStatus": status,
 		"kvstoreErr":    err,
-		"prefix":        c.prefix,
 	})
 }
 
-func (c *cache) keyToID(key string, deleteInvalid bool) idpool.ID {
-	if !strings.HasPrefix(key, c.prefix) {
-		invalidKey(key, c.prefix, deleteInvalid)
-		return idpool.NoID
+type CacheMutations interface {
+	OnListDone()
+	OnAdd(id idpool.ID, key AllocatorKey)
+	OnModify(id idpool.ID, key AllocatorKey)
+	OnDelete(id idpool.ID, key AllocatorKey)
+}
+
+func (c *cache) sendEvent(typ kvstore.EventType, id idpool.ID, key AllocatorKey) {
+	if events := c.allocator.events; events != nil {
+		events <- AllocatorEvent{Typ: typ, ID: id, Key: key}
+	}
+}
+
+func (c *cache) OnListDone() {
+	c.mutex.Lock()
+	// nextCache is valid, point the live cache to it
+	c.cache = c.nextCache
+	c.keyCache = c.nextKeyCache
+	c.mutex.Unlock()
+
+	// report that the list operation has
+	// been completed and the allocator is
+	// ready to use
+	close(c.listDone)
+}
+
+func (c *cache) OnAdd(id idpool.ID, key AllocatorKey) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	c.nextCache[id] = key
+	if key != nil {
+		c.nextKeyCache[key.GetKey()] = id
+	}
+	c.allocator.idPool.Remove(id)
+
+	c.sendEvent(kvstore.EventTypeCreate, id, key)
+}
+
+func (c *cache) OnModify(id idpool.ID, key AllocatorKey) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	if k, ok := c.nextCache[id]; ok {
+		delete(c.nextKeyCache, k.GetKey())
 	}
 
-	suffix := strings.TrimPrefix(key, c.prefix)
-	if suffix[0] == '/' {
-		suffix = suffix[1:]
+	c.nextCache[id] = key
+	if key != nil {
+		c.nextKeyCache[key.GetKey()] = id
 	}
 
-	id, err := strconv.ParseUint(suffix, 10, 64)
-	if err != nil {
-		invalidKey(key, c.prefix, deleteInvalid)
-		return idpool.NoID
+	c.sendEvent(kvstore.EventTypeModify, id, key)
+}
+
+func (c *cache) OnDelete(id idpool.ID, key AllocatorKey) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	a := c.allocator
+	if a.enableMasterKeyProtection {
+		if value := a.localKeys.lookupID(id); value != nil {
+			a.backend.UpdateKey(id, value, true)
+			return
+		}
 	}
 
-	return idpool.ID(id)
+	if k, ok := c.nextCache[id]; ok && k != nil {
+		delete(c.nextKeyCache, k.GetKey())
+	}
+
+	delete(c.nextCache, id)
+	a.idPool.Insert(id)
+
+	c.sendEvent(kvstore.EventTypeDelete, id, key)
 }
 
 // start requests a LIST operation from the kvstore and starts watching the
 // prefix in a go subroutine.
 func (c *cache) start(a *Allocator) waitChan {
-	listDone := make(waitChan)
+	c.listDone = make(waitChan)
 
 	logger := c.getLogger()
 	logger.Info("Starting to watch allocation changes")
@@ -131,104 +182,11 @@ func (c *cache) start(a *Allocator) waitChan {
 	c.stopWatchWg.Add(1)
 
 	go func() {
-		watcher := c.backend.ListAndWatch(c.prefix, c.prefix, 512)
-
-		for {
-			select {
-			case event, ok := <-watcher.Events:
-				if !ok {
-					goto abort
-				}
-				if event.Typ == kvstore.EventTypeListDone {
-					c.mutex.Lock()
-					// nextCache is valid, point the live cache to it
-					c.cache = c.nextCache
-					c.keyCache = c.nextKeyCache
-					c.mutex.Unlock()
-
-					// report that the list operation has
-					// been completed and the allocator is
-					// ready to use
-					close(listDone)
-					continue
-				}
-
-				id := c.keyToID(event.Key, c.deleteInvalidPrefixes)
-				if id != 0 {
-					c.mutex.Lock()
-
-					var key AllocatorKey
-
-					if len(event.Value) > 0 {
-						var err error
-						key, err = a.keyType.PutKey(string(event.Value))
-						if err != nil {
-							logger.WithError(err).WithField(fieldKey, event.Value).
-								Warning("Unable to unmarshal allocator key")
-						}
-					}
-					debugFields := logger.WithFields(logrus.Fields{fieldKey: key, fieldID: id})
-
-					switch event.Typ {
-					case kvstore.EventTypeCreate:
-						kvstore.Trace("Adding id to cache", nil, debugFields.Data)
-						c.nextCache[id] = key
-						if key != nil {
-							c.nextKeyCache[key.GetKey()] = id
-						}
-						a.idPool.Remove(id)
-
-					case kvstore.EventTypeModify:
-						kvstore.Trace("Modifying id in cache", nil, debugFields.Data)
-						if k, ok := c.nextCache[id]; ok {
-							delete(c.nextKeyCache, k.GetKey())
-						}
-
-						c.nextCache[id] = key
-						if key != nil {
-							c.nextKeyCache[key.GetKey()] = id
-						}
-
-					case kvstore.EventTypeDelete:
-						kvstore.Trace("Removing id from cache", nil, debugFields.Data)
-
-						if a.enableMasterKeyProtection {
-							if value := a.localKeys.lookupID(id); value != "" {
-								a.recreateMasterKey(id, value, true)
-								break
-							}
-						}
-
-						if k, ok := c.nextCache[id]; ok && k != nil {
-							delete(c.nextKeyCache, k.GetKey())
-						}
-
-						delete(c.nextCache, id)
-						a.idPool.Insert(id)
-					}
-					c.mutex.Unlock()
-
-					if a.events != nil {
-						a.events <- AllocatorEvent{
-							Typ: event.Typ,
-							ID:  idpool.ID(id),
-							Key: key,
-						}
-					}
-				}
-
-			case <-c.stopChan:
-				goto abort
-			}
-		}
-
-	abort:
-		watcher.Stop()
-		// Signal that watcher is done
+		c.allocator.backend.ListAndWatch(c, c.stopChan)
 		c.stopWatchWg.Done()
 	}()
 
-	return listDone
+	return c.listDone
 }
 
 func (c *cache) startAndWait(a *Allocator) error {
@@ -245,10 +203,7 @@ func (c *cache) startAndWait(a *Allocator) error {
 }
 
 func (c *cache) stop() {
-	select {
-	case c.stopChan <- true:
-	default:
-	}
+	close(c.stopChan)
 	c.stopWatchWg.Wait()
 }
 

@@ -379,6 +379,17 @@ func NewLabelsFromModel(base []string) Labels {
 	return lbls
 }
 
+// NewLabelsFromMap creates labels from a map
+func NewLabelsFromMap(base map[string]string, source string) Labels {
+	lbls := make(Labels, len(base))
+	for k, v := range base {
+		lbl := NewLabel(k, v, source)
+		lbls[lbl.Key] = lbl
+	}
+
+	return lbls
+}
+
 // NewLabelsFromSortedList returns labels based on the output of SortedList()
 func NewLabelsFromSortedList(list string) Labels {
 	return NewLabelsFromModel(strings.Split(list, ";"))
