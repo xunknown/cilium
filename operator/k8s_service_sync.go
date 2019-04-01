@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/cilium/cilium/pkg/k8s"
+	"github.com/cilium/cilium/pkg/k8s/informer"
 	"github.com/cilium/cilium/pkg/kvstore/store"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/metrics"
@@ -92,7 +93,7 @@ func startSynchronizingServices() {
 	}()
 
 	// Watch for v1.Service changes and push changes into ServiceCache
-	_, svcController := k8s.NewInformer(
+	_, svcController := informer.NewInformer(
 		cache.NewListWatchFromClient(k8s.Client().CoreV1().RESTClient(),
 			"services", v1.NamespaceAll, fields.Everything()),
 		&v1.Service{},
@@ -144,7 +145,7 @@ func startSynchronizingServices() {
 	go svcController.Run(wait.NeverStop)
 
 	// Watch for v1.Endpoints changes and push changes into ServiceCache
-	_, endpointController := k8s.NewInformer(
+	_, endpointController := informer.NewInformer(
 		cache.NewListWatchFromClient(k8s.Client().CoreV1().RESTClient(),
 			"endpoints", v1.NamespaceAll,
 			// Don't get any events from kubernetes endpoints.

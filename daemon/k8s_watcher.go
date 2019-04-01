@@ -34,6 +34,7 @@ import (
 	"github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	cilium_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	clientset "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned"
+	"github.com/cilium/cilium/pkg/k8s/informer"
 	k8smetrics "github.com/cilium/cilium/pkg/k8s/metrics"
 	"github.com/cilium/cilium/pkg/k8s/types"
 	k8sUtils "github.com/cilium/cilium/pkg/k8s/utils"
@@ -360,7 +361,7 @@ func (d *Daemon) EnableK8sWatcher(queueSize uint) error {
 	serNodes := serializer.NewFunctionQueue(queueSize)
 	serNamespaces := serializer.NewFunctionQueue(queueSize)
 
-	_, policyController := k8s.NewInformer(
+	_, policyController := informer.NewInformer(
 		cache.NewListWatchFromClient(k8s.Client().NetworkingV1().RESTClient(),
 			"networkpolicies", v1.NamespaceAll, fields.Everything()),
 		&networkingv1.NetworkPolicy{},
@@ -430,7 +431,7 @@ func (d *Daemon) EnableK8sWatcher(queueSize uint) error {
 
 	d.k8sAPIGroups.addAPI(k8sAPIGroupNetworkingV1Core)
 
-	_, svcController := k8s.NewInformer(
+	_, svcController := informer.NewInformer(
 		cache.NewListWatchFromClient(k8s.Client().CoreV1().RESTClient(),
 			"services", v1.NamespaceAll, fields.Everything()),
 		&v1.Service{},
@@ -499,7 +500,7 @@ func (d *Daemon) EnableK8sWatcher(queueSize uint) error {
 	go svcController.Run(wait.NeverStop)
 	d.k8sAPIGroups.addAPI(k8sAPIGroupServiceV1Core)
 
-	_, endpointController := k8s.NewInformer(
+	_, endpointController := informer.NewInformer(
 		cache.NewListWatchFromClient(k8s.Client().CoreV1().RESTClient(),
 			"endpoints", v1.NamespaceAll,
 			fields.ParseSelectorOrDie(option.Config.K8sWatcherEndpointSelector),
@@ -570,7 +571,7 @@ func (d *Daemon) EnableK8sWatcher(queueSize uint) error {
 	d.k8sAPIGroups.addAPI(k8sAPIGroupEndpointV1Core)
 
 	if option.Config.IsLBEnabled() {
-		_, ingressController := k8s.NewInformer(
+		_, ingressController := informer.NewInformer(
 			cache.NewListWatchFromClient(k8s.Client().ExtensionsV1beta1().RESTClient(),
 				"ingresses", v1.NamespaceAll, fields.Everything()),
 			&v1beta1.Ingress{},
@@ -641,7 +642,7 @@ func (d *Daemon) EnableK8sWatcher(queueSize uint) error {
 
 	var (
 		cnpEventStore    cache.Store
-		cnpConverterFunc k8s.ConvertFunc
+		cnpConverterFunc informer.ConvertFunc
 	)
 	cnpStore := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
 	switch {
@@ -654,7 +655,7 @@ func (d *Daemon) EnableK8sWatcher(queueSize uint) error {
 		cnpConverterFunc = k8s.ConvertToCNPWithStatus
 	}
 
-	ciliumV2Controller := k8s.NewInformerWithStore(
+	ciliumV2Controller := informer.NewInformerWithStore(
 		cache.NewListWatchFromClient(ciliumNPClient.CiliumV2().RESTClient(),
 			"ciliumnetworkpolicies", v1.NamespaceAll, fields.Everything()),
 		&cilium_v2.CiliumNetworkPolicy{},
@@ -730,7 +731,7 @@ func (d *Daemon) EnableK8sWatcher(queueSize uint) error {
 	go ciliumV2Controller.Run(wait.NeverStop)
 	d.k8sAPIGroups.addAPI(k8sAPIGroupCiliumV2)
 
-	_, podController := k8s.NewInformer(
+	_, podController := informer.NewInformer(
 		cache.NewListWatchFromClient(k8s.Client().CoreV1().RESTClient(),
 			"pods", v1.NamespaceAll, fields.Everything()),
 		&v1.Pod{},
@@ -786,7 +787,7 @@ func (d *Daemon) EnableK8sWatcher(queueSize uint) error {
 	go podController.Run(wait.NeverStop)
 	d.k8sAPIGroups.addAPI(k8sAPIGroupPodV1Core)
 
-	_, nodeController := k8s.NewInformer(
+	_, nodeController := informer.NewInformer(
 		cache.NewListWatchFromClient(k8s.Client().CoreV1().RESTClient(),
 			"nodes", v1.NamespaceAll, fields.Everything()),
 		&v1.Node{},
@@ -854,7 +855,7 @@ func (d *Daemon) EnableK8sWatcher(queueSize uint) error {
 	go nodeController.Run(wait.NeverStop)
 	d.k8sAPIGroups.addAPI(k8sAPIGroupNodeV1Core)
 
-	_, namespaceController := k8s.NewInformer(
+	_, namespaceController := informer.NewInformer(
 		cache.NewListWatchFromClient(k8s.Client().CoreV1().RESTClient(),
 			"namespaces", v1.NamespaceAll, fields.Everything()),
 		&v1.Namespace{},
