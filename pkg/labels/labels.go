@@ -458,11 +458,17 @@ func (l Labels) ToSlice() []Label {
 	return labels
 }
 
-// LabelArray returns the labels as label array
+// LabelArray returns the labels as label array, sorted by the key
 func (l Labels) LabelArray() LabelArray {
+	var keys []string
+	for k := range l {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	labels := []Label{}
-	for _, v := range l {
-		labels = append(labels, v)
+	for _, k := range keys {
+		labels = append(labels, l[k])
 	}
 	return labels
 }
