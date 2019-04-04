@@ -14,6 +14,10 @@
 
 package labels
 
+import (
+	"strings"
+)
+
 // LabelArray is an array of labels forming a set
 type LabelArray []Label
 
@@ -38,10 +42,19 @@ func ParseSelectLabelArray(labels ...string) LabelArray {
 // ParseLabelArrayFromArray converts an array of strings as labels and returns a LabelArray
 func ParseLabelArrayFromArray(base []string) LabelArray {
 	array := make([]Label, len(base))
-	for i := range base {
-		array[i] = ParseLabel(base[i])
+	i := 0
+	for _, v := range base {
+		if lbl := ParseLabel(v); lbl.Key != "" {
+			array[i] = lbl
+			i++
+		}
 	}
-	return array
+	return array[:i]
+}
+
+// NewLabelArrayFromSortedList returns labels based on the output of SortedList()
+func NewLabelArrayFromSortedList(list string) LabelArray {
+	return ParseLabelArrayFromArray(strings.Split(list, ";"))
 }
 
 // ParseSelectLabelArrayFromArray converts an array of strings as select labels and returns a LabelArray
@@ -51,6 +64,15 @@ func ParseSelectLabelArrayFromArray(base []string) LabelArray {
 		array[i] = ParseSelectLabel(base[i])
 	}
 	return array
+}
+
+// Labels returns the LabelArray as Labels
+func (ls LabelArray) Labels() Labels {
+	lbls := Labels{}
+	for _, l := range ls {
+		lbls[l.Key] = l
+	}
+	return lbls
 }
 
 // Contains returns true if all ls contains all the labels in needed. If
