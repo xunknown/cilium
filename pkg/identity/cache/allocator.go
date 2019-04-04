@@ -33,22 +33,35 @@ import (
 
 // globalIdentity is the structure used to store an identity in the kvstore
 type globalIdentity struct {
-	labels.Labels
+	labels.LabelArray
 }
 
-// GetKey() encodes a globalIdentity as string
+// GetKey() encodes a globalIdentity as string to be used as key-value store key.
+// For now this duplicates code from labels.SortedList().
+//
+// DO NOT BREAK THE FORMAT OF THIS. THE RETURNED STRING IS USED AS KEY IN
+// THE KEY-VALUE STORE.
 func (gi globalIdentity) GetKey() string {
-	return kvstore.Encode(gi.SortedList())
+	str := ""
+	for _, l := range gi.LabelArray {
+		// We don't care if the values already have a '=' since this method is
+		// only used to calculate a SHA256Sum
+		//
+		// We absolutely care that the final character is a semi-colon.
+		// Identity allocation in the kvstore depends on this (see
+		// kvstore.prefixMatchesKey())
+		str += fmt.Sprintf(`%s:%s=%s;`, l.Source, l.Key, l.Value)
+	}
+	return kvstore.Encode([]byte(str))
 }
 
-// PutKey() decides a globalIdentity from its string representation
+// PutKey() decodes a globalIdentity from its string representation
 func (gi globalIdentity) PutKey(v string) (allocator.AllocatorKey, error) {
 	b, err := kvstore.Decode(v)
 	if err != nil {
 		return nil, err
 	}
-
-	return globalIdentity{labels.NewLabelsFromSortedList(string(b))}, nil
+	return globalIdentity{labels.NewLabelArrayFromSortedList(string(b))}, nil
 }
 
 var (
@@ -199,7 +212,7 @@ func AllocateIdentity(ctx context.Context, lbls labels.Labels) (*identity.Identi
 		return nil, false, fmt.Errorf("allocator not initialized")
 	}
 
-	id, isNew, err := IdentityAllocator.Allocate(ctx, globalIdentity{lbls})
+	id, isNew, err := IdentityAllocator.Allocate(ctx, globalIdentity{lbls.LabelArray()})
 	if err != nil {
 		return nil, false, err
 	}
@@ -235,7 +248,7 @@ func Release(ctx context.Context, id *identity.Identity) (bool, error) {
 		return false, fmt.Errorf("allocator not initialized")
 	}
 
-	return IdentityAllocator.Release(ctx, globalIdentity{id.Labels})
+	return IdentityAllocator.Release(ctx, globalIdentity{id.LabelArray})
 }
 
 // ReleaseSlice attempts to release a set of identities. It is a helper
