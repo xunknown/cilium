@@ -119,9 +119,17 @@ type datapathRegenerationContext struct {
 	revertStack  revert.RevertStack
 }
 
-func (ctx *datapathRegenerationContext) prepareForProxyUpdates() {
-	// Set up a context to wait for proxy completions.
-	completionCtx, completionCancel := context.WithTimeout(context.Background(), EndpointGenerationTimeout)
+func (ctx *datapathRegenerationContext) prepareForProxyUpdates(parentCtx context.Context) {
+	var (
+		completionCtx    context.Context
+		completionCancel context.CancelFunc
+	)
+
+	if parentCtx != nil {
+		completionCtx, completionCancel = context.WithTimeout(parentCtx, EndpointGenerationTimeout)
+	} else {
+		completionCtx, completionCancel = context.WithTimeout(context.Background(), EndpointGenerationTimeout)
+	}
 	ctx.proxyWaitGroup = completion.NewWaitGroup(completionCtx)
 	ctx.completionCtx = completionCtx
 	ctx.completionCancel = completionCancel
