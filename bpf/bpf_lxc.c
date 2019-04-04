@@ -150,7 +150,7 @@ skip_service_lookup:
 		if (info != NULL && info->sec_label) {
 			*dstID = info->sec_label;
 			tunnel_endpoint = info->tunnel_endpoint;
-			encrypt_key = info->key;
+			encrypt_key = get_min_encrypt_key(info->key);
 		} else {
 			*dstID = WORLD_ID;
 		}
@@ -473,7 +473,7 @@ skip_service_lookup:
 		if (info != NULL && info->sec_label) {
 			*dstID = info->sec_label;
 			tunnel_endpoint = info->tunnel_endpoint;
-			encrypt_key = info->key;
+			encrypt_key = get_min_encrypt_key(info->key);
 		} else {
 			*dstID = WORLD_ID;
 		}
