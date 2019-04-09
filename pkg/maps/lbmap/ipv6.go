@@ -36,16 +36,14 @@ var (
 		int(unsafe.Sizeof(Service6Value{})),
 		MaxEntries,
 		0, 0,
-		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) error {
+		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) (bpf.MapKey, bpf.MapValue, error) {
 			svcKey, svcVal := mapKey.(*Service6Key), mapValue.(*Service6Value)
 
-			if err := bpf.ConvertKeyValue(key, value, svcKey, svcVal); err != nil {
-				return err
+			if _, _, err := bpf.ConvertKeyValue(key, value, svcKey, svcVal); err != nil {
+				return nil, nil, err
 			}
 
-			mapKey = svcKey.ToNetwork()
-			mapValue = svcVal.ToNetwork()
-			return nil
+			return svcKey.ToNetwork(), svcVal.ToNetwork(), nil
 		}).WithCache()
 	Service6MapV2 = bpf.NewMap("cilium_lb6_services_v2",
 		bpf.MapTypeHash,
@@ -55,16 +53,14 @@ var (
 		int(unsafe.Sizeof(Service6ValueV2{})),
 		MaxEntries,
 		0, 0,
-		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) error {
+		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) (bpf.MapKey, bpf.MapValue, error) {
 			svcKey, svcVal := mapKey.(*Service6KeyV2), mapValue.(*Service6ValueV2)
 
-			if err := bpf.ConvertKeyValue(key, value, svcKey, svcVal); err != nil {
-				return err
+			if _, _, err := bpf.ConvertKeyValue(key, value, svcKey, svcVal); err != nil {
+				return nil, nil, err
 			}
 
-			mapKey = svcKey.ToNetwork()
-			mapValue = svcVal.ToNetwork()
-			return nil
+			return svcKey.ToNetwork(), svcVal.ToNetwork(), nil
 		}).WithCache()
 	Backend6Map = bpf.NewMap("cilium_lb6_backends",
 		bpf.MapTypeHash,
@@ -74,15 +70,14 @@ var (
 		int(unsafe.Sizeof(Backend6Value{})),
 		MaxEntries,
 		0, 0,
-		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) error {
-			backendKey, backendVal := mapKey.(*Backend6Key), mapValue.(*Backend6Value)
+		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) (bpf.MapKey, bpf.MapValue, error) {
+			backendVal := mapValue.(*Backend6Value)
 
-			if err := bpf.ConvertKeyValue(key, value, backendKey, backendVal); err != nil {
-				return err
+			if _, _, err := bpf.ConvertKeyValue(key, value, mapKey, backendVal); err != nil {
+				return nil, nil, err
 			}
 
-			mapValue = backendVal.ToNetwork()
-			return nil
+			return mapKey, backendVal.ToNetwork(), nil
 		}).WithCache()
 	// RevNat6Map represents the BPF map for reverse NAT in IPv6 load balancer
 	RevNat6Map = bpf.NewMap("cilium_lb6_reverse_nat",
@@ -93,17 +88,14 @@ var (
 		int(unsafe.Sizeof(RevNat6Value{})),
 		MaxEntries,
 		0, 0,
-		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) error {
+		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) (bpf.MapKey, bpf.MapValue, error) {
 			revKey, revNat := mapKey.(*RevNat6Key), mapValue.(*RevNat6Value)
 
-			if err := bpf.ConvertKeyValue(key, value, revKey, revNat); err != nil {
-				return err
+			if _, _, err := bpf.ConvertKeyValue(key, value, revKey, revNat); err != nil {
+				return nil, nil, err
 			}
 
-			mapKey = revKey.ToNetwork()
-			mapValue = revNat.ToNetwork()
-
-			return nil
+			return revKey.ToNetwork(), revNat.ToNetwork(), nil
 		}).WithCache()
 	// RRSeq6Map represents the BPF map for wrr sequences in IPv6 load balancer
 	RRSeq6Map = bpf.NewMap("cilium_lb6_rr_seq",
@@ -114,16 +106,14 @@ var (
 		int(unsafe.Sizeof(RRSeqValue{})),
 		maxFrontEnds,
 		0, 0,
-		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) error {
-			svcKey, svcVal := mapKey.(*Service6Key), mapValue.(*RRSeqValue)
+		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) (bpf.MapKey, bpf.MapValue, error) {
+			svcKey := mapKey.(*Service6Key)
 
-			if err := bpf.ConvertKeyValue(key, value, svcKey, svcVal); err != nil {
-				return err
+			if _, _, err := bpf.ConvertKeyValue(key, value, svcKey, mapValue); err != nil {
+				return nil, nil, err
 			}
 
-			mapKey = svcKey.ToNetwork()
-
-			return nil
+			return svcKey.ToNetwork(), mapValue, nil
 		}).WithCache()
 	// RRSeq6MapV2 represents the BPF map for wrr sequences in IPv6 load balancer
 	RRSeq6MapV2 = bpf.NewMap("cilium_lb6_rr_seq_v2",
@@ -134,16 +124,14 @@ var (
 		int(unsafe.Sizeof(RRSeqValue{})),
 		maxFrontEnds,
 		0, 0,
-		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) error {
-			svcKey, svcVal := mapKey.(*Service6KeyV2), mapValue.(*RRSeqValue)
+		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) (bpf.MapKey, bpf.MapValue, error) {
+			svcKey := mapKey.(*Service6KeyV2)
 
-			if err := bpf.ConvertKeyValue(key, value, svcKey, svcVal); err != nil {
-				return err
+			if _, _, err := bpf.ConvertKeyValue(key, value, svcKey, mapValue); err != nil {
+				return nil, nil, err
 			}
 
-			mapKey = svcKey.ToNetwork()
-
-			return nil
+			return svcKey.ToNetwork(), mapValue, nil
 		}).WithCache()
 )
 

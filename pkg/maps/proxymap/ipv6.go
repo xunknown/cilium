@@ -73,16 +73,14 @@ var (
 		int(unsafe.Sizeof(Proxy6Value{})),
 		MaxEntries,
 		0, 0,
-		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) error {
+		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) (bpf.MapKey, bpf.MapValue, error) {
 			k, v := mapKey.(*Proxy6Key), mapValue.(*Proxy6Value)
 
-			if err := bpf.ConvertKeyValue(key, value, k, v); err != nil {
-				return err
+			if _, _, err := bpf.ConvertKeyValue(key, value, k, v); err != nil {
+				return nil, nil, err
 			}
 
-			mapKey=	k.ToNetwork()
-			mapValue=v.ToNetwork()
-			return nil
+			return k.ToNetwork(), v.ToNetwork(), nil
 		}).WithNonPersistent()
 )
 

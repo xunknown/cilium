@@ -478,7 +478,7 @@ func (m *Map) Reopen() error {
 	return m.Open()
 }
 
-type DumpParser func(key []byte, value []byte, mapKey MapKey, mapValue MapValue) error
+type DumpParser func(key []byte, value []byte, mapKey MapKey, mapValue MapValue) (MapKey, MapValue, error)
 type DumpCallback func(key MapKey, value MapValue)
 type MapValidator func(path string) (bool, error)
 
@@ -530,7 +530,7 @@ func (m *Map) DumpWithCallback(cb DumpCallback) error {
 			return err
 		}
 
-		err = m.dumpParser(nextKey, value, mk, mv)
+		mk, mv, err = m.dumpParser(nextKey, value, mk, mv)
 		if err != nil {
 			return err
 		}
@@ -625,7 +625,7 @@ func (m *Map) DumpReliablyWithCallback(cb DumpCallback, stats *DumpStats) error 
 			continue
 		}
 
-		err = m.dumpParser(currentKey, value, mk, mv)
+		mk, mv, err = m.dumpParser(currentKey, value, mk, mv)
 		if err != nil {
 			stats.Interrupted++
 			return err
@@ -835,7 +835,7 @@ func (m *Map) DeleteAll() error {
 
 		err = DeleteElement(m.fd, unsafe.Pointer(&nextKey[0]))
 
-		err2 := m.dumpParser(nextKey, []byte{}, mk, mv)
+		mk, _, err2 := m.dumpParser(nextKey, []byte{}, mk, mv)
 		if err2 == nil {
 			m.deleteCacheEntry(mk, err)
 		} else {
@@ -1038,21 +1038,21 @@ func read(r []byte, order binary.ByteOrder, data interface{}) error {
 }
 
 // ConvertKeyValue converts key and value from bytes to given Golang struct pointers.
-func ConvertKeyValue(bKey []byte, bValue []byte, key MapKey, value MapValue) error {
+func ConvertKeyValue(bKey []byte, bValue []byte, key MapKey, value MapValue) (MapKey, MapValue, error) {
 
 	if len(bKey) > 0 {
 		if err := read(bKey, byteorder.Native, key); err != nil {
-			return fmt.Errorf("Unable to convert key: %s", err)
+			return nil, nil, fmt.Errorf("Unable to convert key: %s", err)
 		}
 	}
 
 	if len(bValue) > 0 {
 		if err := read(bValue, byteorder.Native, value); err != nil {
-			return fmt.Errorf("Unable to convert value: %s", err)
+			return nil, nil, fmt.Errorf("Unable to convert value: %s", err)
 		}
 	}
 
-	return nil
+	return key, value, nil
 }
 
 // GetModel returns a BPF map in the representation served via the API
