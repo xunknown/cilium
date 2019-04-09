@@ -120,7 +120,7 @@ func (b *LBMapTestSuite) TestScaleService(c *C) {
 }
 
 func (b *LBMapTestSuite) TestPrepareUpdate(c *C) {
-	cache := newLBMapCache()
+	cache := newLBMapCache(true)
 
 	ip := net.ParseIP("1.1.1.1")
 	c.Assert(ip, Not(IsNil))
