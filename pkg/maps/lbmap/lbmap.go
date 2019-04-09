@@ -47,7 +47,7 @@ const (
 var (
 	// cache contains *all* services of both IPv4 and IPv6 based maps
 	// combined
-	cache = newLBMapCache()
+	cache = newLBMapCache(option.Config.EnableLegacyServices)
 )
 
 func updateServiceEndpoint(key ServiceKey, value ServiceValue) error {
@@ -75,8 +75,6 @@ func DeleteService(key ServiceKey) error {
 	if err != nil {
 		return err
 	}
-
-	cache.delete(key)
 
 	return nil
 }
@@ -276,22 +274,24 @@ func UpdateService(fe ServiceKey, backends []ServiceValue,
 		return err
 	}
 
-	besValues := svc.getBackends()
-
-	log.WithFields(logrus.Fields{
-		"frontend": fe,
-		"backends": besValues,
-	}).Debugf("Updating BPF representation of service")
-
-	for _, be := range besValues {
-		weights = append(weights, be.GetWeight())
-		if be.GetWeight() != 0 {
-			nNonZeroWeights++
-		}
-	}
+	// FIXME(brb) Uncomment the following code after we enable svc weights (
+	// currently disabled in the BPF datapath code)
+	//for _, be := range besValues {
+	//	weights = append(weights, be.GetWeight())
+	//	if be.GetWeight() != 0 {
+	//		nNonZeroWeights++
+	//	}
+	//}
 
 	mutex.Lock()
 	defer mutex.Unlock()
+
+	besValuesV2 := svc.getBackendsV2()
+
+	log.WithFields(logrus.Fields{
+		"frontend": fe,
+		"backends": besValuesV2,
+	}).Debugf("Updating BPF representation of service")
 
 	// Add the new backends to the BPF maps
 	if err := updateBackendsLocked(addedBackends); err != nil {
@@ -299,6 +299,7 @@ func UpdateService(fe ServiceKey, backends []ServiceValue,
 	}
 
 	if isLegacySVCEnabled {
+		besValues := svc.getBackends()
 		// Update the legacy service BPF maps
 		if err := updateServiceLegacyLocked(fe, besValues, addRevNAT, revNATID,
 			weights, nNonZeroWeights); err != nil {
@@ -307,8 +308,8 @@ func UpdateService(fe ServiceKey, backends []ServiceValue,
 	}
 
 	// Update the v2 service BPF maps
-	if err := updateServiceV2Locked(fe, svc, addRevNAT, revNATID, weights,
-		nNonZeroWeights); err != nil {
+	if err := updateServiceV2Locked(fe, besValuesV2, svc, addRevNAT, revNATID,
+		weights, nNonZeroWeights, isLegacySVCEnabled); err != nil {
 		return err
 	}
 
@@ -438,9 +439,11 @@ func updateServiceLegacyLocked(fe ServiceKey, besValues []ServiceValue,
 	return nil
 }
 
-func updateServiceV2Locked(fe ServiceKey, svc *bpfService,
+func updateServiceV2Locked(fe ServiceKey, backends map[BackendAddrID]ServiceValue,
+	svc *bpfService,
 	addRevNAT bool, revNATID int,
-	weights []uint16, nNonZeroWeights uint16) error {
+	weights []uint16, nNonZeroWeights uint16,
+	isLegacySVCEnabled bool) error {
 
 	var (
 		existingCount int
@@ -455,8 +458,6 @@ func updateServiceV2Locked(fe ServiceKey, svc *bpfService,
 		svcKeyV2 = NewService4KeyV2(svc4Key.Address.IP(), svc4Key.Port, u8proto.All, 0)
 	}
 
-	// Do the corresponding updates to the v2 svc maps
-
 	svcValV2, err := lookupServiceV2(svcKeyV2)
 	if err == nil {
 		existingCount = svcValV2.GetCount()
@@ -464,17 +465,18 @@ func updateServiceV2Locked(fe ServiceKey, svc *bpfService,
 
 	svcValV2 = svcKeyV2.NewValue().(ServiceValueV2)
 	slot := 1
-	for addrID, svcVal := range svc.backendsV2 {
-		legacySlaveSlot, found := svc.getSlaveSlot(addrID)
-		if !found {
-			return fmt.Errorf("Slave slot not found for backend with addrID %s", addrID)
+	for addrID, svcVal := range backends {
+		if isLegacySVCEnabled {
+			legacySlaveSlot, found := svc.getSlaveSlot(addrID)
+			if !found {
+				return fmt.Errorf("Slave slot not found for backend with addrID %s", addrID)
+			}
+			svcValV2.SetCount(legacySlaveSlot) // For the backward-compatibility
 		}
 		backendID := cache.getBackendIDByAddrID(addrID)
-		svcValV2.SetCount(legacySlaveSlot)
 		svcValV2.SetBackendID(backendID)
 		svcValV2.SetRevNat(revNATID)
 		svcValV2.SetWeight(svcVal.GetWeight())
-		svcValV2.SetCount(legacySlaveSlot) // For the backward-compatibility
 		svcKeyV2.SetSlave(slot)
 		if err := updateServiceEndpointV2(svcKeyV2, svcValV2); err != nil {
 			return fmt.Errorf("Unable to update service %+v with the value %+v: %s",
@@ -493,6 +495,7 @@ func updateServiceV2Locked(fe ServiceKey, svc *bpfService,
 		return fmt.Errorf("unable to update service %+v: %s", svcKeyV2, err)
 	}
 
+	// TODO(brb) disable weights
 	err = updateWrrSeqV2(svcKeyV2, weights)
 	if err != nil {
 		return fmt.Errorf("unable to update service weights for %s with value %+v: %s", svcKeyV2.String(), weights, err)
@@ -947,4 +950,17 @@ func DeleteServiceV2(svc loadbalancer.L3n4AddrID, releaseBackendID func(loadbala
 	}
 
 	return nil
+}
+
+// DeleteServiceCache deletes the service cache.
+func DeleteServiceCache(svc loadbalancer.L3n4AddrID) {
+	var svcKey ServiceKey
+
+	if !svc.IsIPv6() {
+		svcKey = NewService4Key(svc.IP, svc.Port, 0)
+	} else {
+		svcKey = NewService6Key(svc.IP, svc.Port, 0)
+	}
+
+	cache.delete(svcKey)
 }
