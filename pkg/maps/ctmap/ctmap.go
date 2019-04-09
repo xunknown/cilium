@@ -245,25 +245,47 @@ func doGC6(m *Map, filter *GCFilter) gcStats {
 	}
 
 	filterCallback := func(key bpf.MapKey, value bpf.MapValue) {
-		currentKey := key.(*tuple.TupleKey6Global)
 		entry := value.(*CtEntry)
 
-		// In CT entries, the source address of the conntrack entry (`SourceAddr`) is
-		// the destination of the packet received, therefore it's the packet's
-		// destination IP
-		action := filter.doFiltering(currentKey.DestAddr.IP(), currentKey.SourceAddr.IP(), currentKey.SourcePort,
-			uint8(currentKey.NextHeader), currentKey.Flags, entry)
+		switch obj := key.(type) {
+		case *tuple.TupleKey6Global:
+			currentKey6Global := obj
+			// In CT entries, the source address of the conntrack entry (`SourceAddr`) is
+			// the destination of the packet received, therefore it's the packet's
+			// destination IP
+			action := filter.doFiltering(currentKey6Global.DestAddr.IP(), currentKey6Global.SourceAddr.IP(), currentKey6Global.SourcePort,
+				uint8(currentKey6Global.NextHeader), currentKey6Global.Flags, entry)
 
-		switch action {
-		case deleteEntry:
-			err := purgeCtEntry6(m, currentKey, natMap)
-			if err != nil {
-				log.WithError(err).Errorf("Unable to delete CT entry %s", currentKey.String())
-			} else {
-				stats.deleted++
+			switch action {
+			case deleteEntry:
+				err := purgeCtEntry6(m, currentKey6Global, natMap)
+				if err != nil {
+					log.WithError(err).Errorf("Unable to delete CT entry %s", currentKey6Global.String())
+				} else {
+					stats.deleted++
+				}
+			default:
+				stats.aliveEntries++
 			}
-		default:
-			stats.aliveEntries++
+		case *tuple.TupleKey6:
+			currentKey6 := obj
+			// In CT entries, the source address of the conntrack entry (`SourceAddr`) is
+			// the destination of the packet received, therefore it's the packet's
+			// destination IP
+			action := filter.doFiltering(currentKey6.DestAddr.IP(), currentKey6.SourceAddr.IP(), currentKey6.SourcePort,
+				uint8(currentKey6.NextHeader), currentKey6.Flags, entry)
+
+			switch action {
+			case deleteEntry:
+				err := purgeCtEntry6(m, currentKey6, natMap)
+				if err != nil {
+					log.WithError(err).Errorf("Unable to delete CT entry %s", currentKey6.String())
+				} else {
+					stats.deleted++
+				}
+			default:
+				stats.aliveEntries++
+			}
 		}
 	}
 	stats.dumpError = m.DumpReliablyWithCallback(filterCallback, stats.DumpStats)
