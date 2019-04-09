@@ -123,14 +123,12 @@ func UpdateElement(fd int, key, value unsafe.Pointer, flags uint64) error {
 // is stored in the value unsafe.Pointer.
 func LookupElementCT(fd int, ubaPtr, sizeOf uintptr) error {
 
-	duration := spanstat.Start()
 	ret, _, err := unix.Syscall(
 		unix.SYS_BPF,
 		BPF_MAP_LOOKUP_ELEM,
 		ubaPtr,
 		sizeOf,
 	)
-	metricSyscallDuration.WithLabelValues(metricOpLookup, metrics.Errno2Outcome(err)).Observe(duration.End(err == 0).Total().Seconds())
 
 	if ret != 0 || err != 0 {
 		return fmt.Errorf("Unable to lookup element in map with file descriptor %d: %s", fd, err)
@@ -195,14 +193,12 @@ func DeleteElement(fd int, key unsafe.Pointer) error {
 // GetNextKey stores, in nextKey, the next key after the key of the map in fd.
 func GetNextKeyCT(fd int, ubaPtr, sizeOf uintptr) error {
 
-	duration := spanstat.Start()
 	ret, _, err := unix.Syscall(
 		unix.SYS_BPF,
 		BPF_MAP_GET_NEXT_KEY,
 		ubaPtr,
 		sizeOf,
 	)
-	metricSyscallDuration.WithLabelValues(metricOpGetNextKey, metrics.Errno2Outcome(err)).Observe(duration.End(err == 0).Total().Seconds())
 
 	if ret != 0 || err != 0 {
 		return fmt.Errorf("Unable to get next key from map with file descriptor %d: %s", fd, err)
