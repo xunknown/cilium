@@ -58,3 +58,13 @@ func (t *TupleValStub) GetValuePtr() unsafe.Pointer { return unsafe.Pointer(t) }
 func (t *TupleValStub) String() string {
 	return fmt.Sprintf("<TupleValStub>")
 }
+
+// DeepCopyMapValue is a deepcopy function, copying the receiver, creating a new bpf.MapValue.
+func (t *TupleValStub) DeepCopyMapValue() bpf.MapValue {
+	if t != nil {
+		c := &TupleValStub{}
+		copy(c.buff[:], t.buff[:])
+		return c
+	}
+	return nil
+}

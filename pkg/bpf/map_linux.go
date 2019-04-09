@@ -48,6 +48,8 @@ type MapKey interface {
 
 	// Allocates a new value matching the key type
 	NewValue() MapValue
+
+	DeepCopyMapKey() MapKey
 }
 
 type MapValue interface {
@@ -55,6 +57,8 @@ type MapValue interface {
 
 	// Returns pointer to start of value
 	GetValuePtr() unsafe.Pointer
+
+	DeepCopyMapValue() MapValue
 }
 
 type MapInfo struct {
@@ -65,6 +69,9 @@ type MapInfo struct {
 	Flags         uint32
 	InnerID       uint32
 	OwnerProgType ProgType
+
+	MapKey   MapKey
+	MapValue MapValue
 }
 
 type cacheEntry struct {
@@ -117,7 +124,7 @@ type Map struct {
 }
 
 // NewMap creates a new Map instance - object representing a BPF map
-func NewMap(name string, mapType MapType, keySize int, valueSize int, maxEntries int, flags uint32, innerID uint32, dumpParser DumpParser) *Map {
+func NewMap(name string, mapType MapType, mapKey MapKey, keySize int, mapValue MapValue, valueSize int, maxEntries int, flags uint32, innerID uint32, dumpParser DumpParser) *Map {
 	m := &Map{
 		MapInfo: MapInfo{
 			MapType:       mapType,
@@ -127,6 +134,8 @@ func NewMap(name string, mapType MapType, keySize int, valueSize int, maxEntries
 			Flags:         flags,
 			InnerID:       innerID,
 			OwnerProgType: ProgTypeUnspec,
+			MapKey:        mapKey,
+			MapValue:      mapValue,
 		},
 		name:       path.Base(name),
 		dumpParser: dumpParser,
@@ -468,7 +477,7 @@ func (m *Map) Reopen() error {
 	return m.Open()
 }
 
-type DumpParser func(key []byte, value []byte) (MapKey, MapValue, error)
+type DumpParser func(key []byte, value []byte, mapKey MapKey, mapValue MapValue) error
 type DumpCallback func(key MapKey, value MapValue)
 type MapValidator func(path string) (bool, error)
 
@@ -486,6 +495,9 @@ func (m *Map) DumpWithCallback(cb DumpCallback) error {
 	if err := m.Open(); err != nil {
 		return err
 	}
+
+	mk := m.MapKey.DeepCopyMapKey()
+	mv := m.MapValue.DeepCopyMapValue()
 
 	for {
 		err := GetNextKey(
@@ -508,13 +520,13 @@ func (m *Map) DumpWithCallback(cb DumpCallback) error {
 			return err
 		}
 
-		k, v, err := m.dumpParser(nextKey, value)
+		err = m.dumpParser(nextKey, value, mk, mv)
 		if err != nil {
 			return err
 		}
 
 		if cb != nil {
-			cb(k, v)
+			cb(mk, mv)
 		}
 
 		copy(key, nextKey)
@@ -556,6 +568,8 @@ func (m *Map) DumpReliablyWithCallback(cb DumpCallback, stats *DumpStats) error 
 		return nil
 	}
 
+	mapKey := m.MapKey.DeepCopyMapKey()
+	mapValue := m.MapValue.DeepCopyMapValue()
 	for stats.Lookup = 1; stats.Lookup <= stats.MaxEntries; stats.Lookup++ {
 		// currentKey was returned by GetNextKey() so we know it existed in the map, but it may have been
 		// deleted by a concurrent map operation. If currentKey is no longer in the map, nextKey will be
@@ -583,14 +597,14 @@ func (m *Map) DumpReliablyWithCallback(cb DumpCallback, stats *DumpStats) error 
 			continue
 		}
 
-		k, v, err := m.dumpParser(currentKey, value)
+		err = m.dumpParser(currentKey, value, mapKey, mapValue)
 		if err != nil {
 			stats.Interrupted++
 			return err
 		}
 
 		if cb != nil {
-			cb(k, v)
+			cb(mapKey, mapValue)
 		}
 
 		if nextKeyValid != nil {
@@ -611,6 +625,7 @@ func (m *Map) DumpReliablyWithCallback(cb DumpCallback, stats *DumpStats) error 
 // data stored in BPF map.
 func (m *Map) Dump(hash map[string][]string) error {
 	callback := func(key MapKey, value MapValue) {
+		// No need to deep copy since we are creating strings.
 		hash[key.String()] = append(hash[key.String()], value.String())
 	}
 
@@ -776,6 +791,9 @@ func (m *Map) DeleteAll() error {
 		return err
 	}
 
+	mk := m.MapKey.DeepCopyMapKey()
+	mv := m.MapValue.DeepCopyMapValue()
+
 	for {
 		err := GetNextKey(
 			m.fd,
@@ -789,9 +807,9 @@ func (m *Map) DeleteAll() error {
 
 		err = DeleteElement(m.fd, unsafe.Pointer(&nextKey[0]))
 
-		k, _, err2 := m.dumpParser(nextKey, []byte{})
+		err2 := m.dumpParser(nextKey, []byte{}, mk, mv)
 		if err2 == nil {
-			m.deleteCacheEntry(k, err)
+			m.deleteCacheEntry(mk, err)
 		} else {
 			log.WithError(err2).Warningf("Unable to correlate iteration key %v with cache entry. Inconsistent cache.", nextKey)
 		}
@@ -818,7 +836,7 @@ func (m *Map) GetNextKey(key MapKey, nextKey MapKey) error {
 }
 
 // ConvertKeyValue converts key and value from bytes to given Golang struct pointers.
-func ConvertKeyValue(bKey []byte, bValue []byte, key interface{}, value interface{}) error {
+func ConvertKeyValue(bKey []byte, bValue []byte, key MapKey, value MapValue) error {
 	keyBuf := bytes.NewBuffer(bKey)
 	valueBuf := bytes.NewBuffer(bValue)
 

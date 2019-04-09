@@ -2,16 +2,10 @@
 
 main() {
     local cilium_started
-    cilium_started=false
 
-    for ((i = 0 ; i < 24; i++)); do
-        if cilium status --brief > /dev/null 2>&1; then
-            cilium_started=true
-            break
-        fi
-        sleep 5s
-        echo "Waiting for Cilium daemon to come up..."
-    done
+    cilium_started=true
+    echo "As Cilium is running in visibility-mode we can't wait for it to start"
+    echo "as it might be waiting for cni0 to be created."
 
     if [ "$cilium_started" = true ] ; then
         echo 'Cilium successfully started!'

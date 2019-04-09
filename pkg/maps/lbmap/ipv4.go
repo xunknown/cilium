@@ -29,100 +29,123 @@ import (
 var (
 	Service4Map = bpf.NewMap("cilium_lb4_services",
 		bpf.MapTypeHash,
+		&Service4Key{},
 		int(unsafe.Sizeof(Service4Key{})),
+		&Service4Value{},
 		int(unsafe.Sizeof(Service4Value{})),
 		MaxEntries,
 		0, 0,
-		func(key []byte, value []byte) (bpf.MapKey, bpf.MapValue, error) {
-			svcKey, svcVal := Service4Key{}, Service4Value{}
+		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) error {
+			svcKey, svcVal := mapKey.(*Service4Key), mapValue.(*Service4Value)
 
-			if err := bpf.ConvertKeyValue(key, value, &svcKey, &svcVal); err != nil {
-				return nil, nil, err
+			if err := bpf.ConvertKeyValue(key, value, svcKey, svcVal); err != nil {
+				return err
 			}
 
-			return svcKey.ToNetwork(), svcVal.ToNetwork(), nil
+			mapKey = svcKey.ToNetwork()
+			mapValue = svcVal.ToNetwork()
+			return nil
 		}).WithCache()
 	Service4MapV2 = bpf.NewMap("cilium_lb4_services_v2",
 		bpf.MapTypeHash,
+		&Service4KeyV2{},
 		int(unsafe.Sizeof(Service4KeyV2{})),
+		&Service4ValueV2{},
 		int(unsafe.Sizeof(Service4ValueV2{})),
 		MaxEntries,
 		0, 0,
-		func(key []byte, value []byte) (bpf.MapKey, bpf.MapValue, error) {
-			svcKey, svcVal := Service4KeyV2{}, Service4ValueV2{}
+		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) error {
+			svcKey, svcVal := mapKey.(*Service4KeyV2), mapValue.(*Service4ValueV2)
 
-			if err := bpf.ConvertKeyValue(key, value, &svcKey, &svcVal); err != nil {
-				return nil, nil, err
+			if err := bpf.ConvertKeyValue(key, value, svcKey, svcVal); err != nil {
+				return err
 			}
 
-			return svcKey.ToNetwork(), svcVal.ToNetwork(), nil
+			mapKey = svcKey.ToNetwork()
+			mapValue = svcVal.ToNetwork()
+			return nil
 		}).WithCache()
 	Backend4Map = bpf.NewMap("cilium_lb4_backends",
 		bpf.MapTypeHash,
+		&Backend4Key{},
 		int(unsafe.Sizeof(Backend4Key{})),
+		&Backend4Value{},
 		int(unsafe.Sizeof(Backend4Value{})),
 		MaxEntries,
 		0, 0,
-		func(key []byte, value []byte) (bpf.MapKey, bpf.MapValue, error) {
-			backendKey, backendVal := Backend4Key{}, Backend4Value{}
+		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) error {
+			backendKey, backendVal := mapKey.(*Backend4Key), mapValue.(*Backend4Value)
 
-			if err := bpf.ConvertKeyValue(key, value, &backendKey, &backendVal); err != nil {
-				return nil, nil, err
+			if err := bpf.ConvertKeyValue(key, value, backendKey, backendVal); err != nil {
+				return err
 			}
 
-			return &backendKey, backendVal.ToNetwork(), nil
+			mapValue = backendVal.ToNetwork()
+			return nil
 		}).WithCache()
 	RevNat4Map = bpf.NewMap("cilium_lb4_reverse_nat",
 		bpf.MapTypeHash,
+		&RevNat4Key{},
 		int(unsafe.Sizeof(RevNat4Key{})),
+		&RevNat4Value{},
 		int(unsafe.Sizeof(RevNat4Value{})),
 		MaxEntries,
 		0, 0,
-		func(key []byte, value []byte) (bpf.MapKey, bpf.MapValue, error) {
-			var ukey uint16
-			var revNat RevNat4Value
+		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) error {
+			revKey, revNat := mapKey.(*RevNat4Key), mapValue.(*RevNat4Value)
 
-			if err := bpf.ConvertKeyValue(key, value, &ukey, &revNat); err != nil {
-				return nil, nil, err
+			if err := bpf.ConvertKeyValue(key, value, revKey, revNat); err != nil {
+				return err
 			}
 
-			revKey := NewRevNat4Key(ukey)
+			mapKey = revKey.ToNetwork()
+			mapValue = revNat.ToNetwork()
 
-			return revKey.ToNetwork(), revNat.ToNetwork(), nil
+			return nil
 		}).WithCache()
 	RRSeq4Map = bpf.NewMap("cilium_lb4_rr_seq",
 		bpf.MapTypeHash,
+		&Service4Key{},
 		int(unsafe.Sizeof(Service4Key{})),
+		&RRSeqValue{},
 		int(unsafe.Sizeof(RRSeqValue{})),
 		maxFrontEnds,
 		0, 0,
-		func(key []byte, value []byte) (bpf.MapKey, bpf.MapValue, error) {
-			svcKey, svcVal := Service4Key{}, RRSeqValue{}
+		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) error {
+			svcKey, svcVal := mapKey.(*Service4Key), mapValue.(*RRSeqValue)
 
-			if err := bpf.ConvertKeyValue(key, value, &svcKey, &svcVal); err != nil {
-				return nil, nil, err
+			if err := bpf.ConvertKeyValue(key, value, svcKey, svcVal); err != nil {
+				return err
 			}
 
-			return svcKey.ToNetwork(), &svcVal, nil
+			mapKey = svcKey.ToNetwork()
+
+			return nil
 		}).WithCache()
 	RRSeq4MapV2 = bpf.NewMap("cilium_lb4_rr_seq_v2",
 		bpf.MapTypeHash,
+		&Service4KeyV2{},
 		int(unsafe.Sizeof(Service4KeyV2{})),
+		&RRSeqValue{},
 		int(unsafe.Sizeof(RRSeqValue{})),
 		maxFrontEnds,
 		0, 0,
-		func(key []byte, value []byte) (bpf.MapKey, bpf.MapValue, error) {
-			svcKey, rrSeqVal := Service4KeyV2{}, RRSeqValue{}
+		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) error {
+			svcKey, svcVal := mapKey.(*Service4KeyV2), mapValue.(*RRSeqValue)
 
-			if err := bpf.ConvertKeyValue(key, value, &svcKey, &rrSeqVal); err != nil {
-				return nil, nil, err
+			if err := bpf.ConvertKeyValue(key, value, svcKey, svcVal); err != nil {
+				return err
 			}
 
-			return svcKey.ToNetwork(), &rrSeqVal, nil
+			mapKey = svcKey.ToNetwork()
+
+			return nil
 		}).WithCache()
 )
 
 // Service4Key must match 'struct lb4_key' in "bpf/lib/common.h".
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapKey
 type Service4Key struct {
 	Address types.IPv4 `align:"address"`
 	Port    uint16     `align:"dport"`
@@ -180,6 +203,8 @@ func (k *Service4Key) RevNatValue() RevNatValue {
 }
 
 // Service4Value must match 'struct lb4_service' in "bpf/lib/common.h".
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapValue
 type Service4Value struct {
 	Address types.IPv4 `align:"target"`
 	Port    uint16     `align:"port"`
@@ -250,6 +275,8 @@ func (s *Service4Value) BackendAddrID() BackendAddrID {
 	return BackendAddrID(fmt.Sprintf("%s:%d", s.Address, s.Port))
 }
 
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapKey
 type RevNat4Key struct {
 	Key uint16
 }
@@ -272,6 +299,8 @@ func (k *RevNat4Key) ToNetwork() RevNatKey {
 	return &n
 }
 
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapValue
 type RevNat4Value struct {
 	Address types.IPv4
 	Port    uint16
@@ -300,13 +329,23 @@ func NewRevNat4Value(ip net.IP, port uint16) *RevNat4Value {
 	return &revNat
 }
 
+type pad [3]uint8
+
+// DeepCopyInto is a deepcopy function, copying the receiver, writing into out. in must be non-nil.
+func (in *pad) DeepCopyInto(out *pad) {
+	copy(out[:], in[:])
+	return
+}
+
 // Service4KeyV2 must match 'struct lb4_key_v2' in "bpf/lib/common.h".
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapKey
 type Service4KeyV2 struct {
 	Address types.IPv4 `align:"address"`
 	Port    uint16     `align:"dport"`
 	Slave   uint16     `align:"slave"`
 	Proto   uint8      `align:"proto"`
-	Pad     [3]uint8
+	Pad     pad
 }
 
 func NewService4KeyV2(ip net.IP, port uint16, proto u8proto.U8proto, slave uint16) *Service4KeyV2 {
@@ -343,6 +382,8 @@ func (k *Service4KeyV2) ToNetwork() ServiceKeyV2 {
 }
 
 // Service4ValueV2 must match 'struct lb4_service_v2' in "bpf/lib/common.h".
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapValue
 type Service4ValueV2 struct {
 	BackendID uint32 `align:"backend_id"`
 	Count     uint16 `align:"count"`
@@ -390,6 +431,8 @@ func (s *Service4ValueV2) ToNetwork() ServiceValueV2 {
 	return &n
 }
 
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapKey
 type Backend4Key struct {
 	ID loadbalancer.BackendID
 }
@@ -406,6 +449,8 @@ func (k *Backend4Key) SetID(id loadbalancer.BackendID) { k.ID = id }
 func (k *Backend4Key) GetID() loadbalancer.BackendID   { return k.ID }
 
 // Backend4Value must match 'struct lb4_backend' in "bpf/lib/common.h".
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapValue
 type Backend4Value struct {
 	Address types.IPv4      `align:"address"`
 	Port    uint16          `align:"port"`

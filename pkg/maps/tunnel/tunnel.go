@@ -44,19 +44,14 @@ type Map struct {
 func NewTunnelMap(name string) *Map {
 	return &Map{Map: bpf.NewMap(MapName,
 		bpf.MapTypeHash,
+		&TunnelEndpoint{},
 		int(unsafe.Sizeof(TunnelEndpoint{})),
+		&TunnelEndpoint{},
 		int(unsafe.Sizeof(TunnelEndpoint{})),
 		MaxEntries,
 		0, 0,
-		func(key []byte, value []byte) (bpf.MapKey, bpf.MapValue, error) {
-			k, v := TunnelEndpoint{}, TunnelEndpoint{}
-
-			if err := bpf.ConvertKeyValue(key, value, &k, &v); err != nil {
-				return nil, nil, err
-			}
-
-			return &k, &v, nil
-		}).WithCache(),
+		bpf.ConvertKeyValue,
+	).WithCache(),
 	}
 }
 
@@ -64,6 +59,9 @@ func init() {
 	TunnelMap.NonPersistent = true
 }
 
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapKey
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapValue
 type TunnelEndpoint struct {
 	bpf.EndpointKey
 }

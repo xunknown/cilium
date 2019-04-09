@@ -1,4 +1,4 @@
-// Copyright 2016-2018 Authors of Cilium
+// Copyright 2016-2019 Authors of Cilium
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,6 +32,8 @@ var (
 	Proxy4MapName = "cilium_proxy4"
 )
 
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapKey
 type Proxy4Key struct {
 	SAddr   types.IPv4 `align:"saddr"`
 	DPort   uint16     `align:"dport"`
@@ -46,6 +48,8 @@ func (k *Proxy4Key) HostPort() string {
 	return net.JoinHostPort(k.SAddr.IP().String(), portStr)
 }
 
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapValue
 type Proxy4Value struct {
 	OrigDAddr      types.IPv4 `align:"orig_daddr"`
 	OrigDPort      uint16     `align:"orig_dport"`
@@ -68,18 +72,22 @@ var (
 	// Proxy4Map represents the BPF map for IPv4 proxy
 	Proxy4Map = bpf.NewMap(Proxy4MapName,
 		bpf.MapTypeHash,
+		&Proxy4Key{},
 		int(unsafe.Sizeof(Proxy4Key{})),
+		&Proxy4Value{},
 		int(unsafe.Sizeof(Proxy4Value{})),
 		MaxEntries,
 		0, 0,
-		func(key []byte, value []byte) (bpf.MapKey, bpf.MapValue, error) {
-			k, v := Proxy4Key{}, Proxy4Value{}
+		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) error {
+			k, v := mapKey.(*Proxy4Key), mapValue.(*Proxy4Value)
 
-			if err := bpf.ConvertKeyValue(key, value, &k, &v); err != nil {
-				return nil, nil, err
+			if err := bpf.ConvertKeyValue(key, value, k, v); err != nil {
+				return err
 			}
 
-			return k.ToNetwork(), v.ToNetwork(), nil
+			mapKey= k.ToNetwork()
+			mapValue=v.ToNetwork()
+			return nil
 		}).WithNonPersistent()
 )
 

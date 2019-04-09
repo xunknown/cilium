@@ -42,7 +42,7 @@ export 'VM_BASENAME'=${K8S+"k8s"}
 # Set VAGRANT_DEFAULT_PROVIDER to virtualbox
 export 'VAGRANT_DEFAULT_PROVIDER'=${VAGRANT_DEFAULT_PROVIDER:-"virtualbox"}
 # Sets the default cilium TUNNEL_MODE to "vxlan"
-export 'TUNNEL_MODE_STRING'=${TUNNEL_MODE_STRING:-"-t vxlan"}
+export 'TUNNEL_MODE_STRING'=${TUNNEL_MODE_STRING:-"-t disabled"}
 # Replies Yes to all prompts asked in this script
 export 'YES_TO_ALL'=${YES_TO_ALL:-"0"}
 
@@ -206,8 +206,8 @@ function write_k8s_install() {
         k8s_cluster_api_server_ip="FD03::1"
         k8s_cluster_dns_ip="FD03::A"
     fi
-    k8s_cluster_cidr=${k8s_cluster_cidr:-"10.16.0.0/12"}
-    k8s_node_cidr_mask_size=${k8s_node_cidr_mask_size:-"16"}
+    k8s_cluster_cidr=${k8s_cluster_cidr:-"10.244.0.0/16"}
+    k8s_node_cidr_mask_size=${k8s_node_cidr_mask_size:-"24"}
     k8s_service_cluster_ip_range=${k8s_service_cluster_ip_range:-"172.20.0.0/24"}
     k8s_cluster_api_server_ip=${k8s_cluster_api_server_ip:-"172.20.0.1"}
     k8s_cluster_dns_ip=${k8s_cluster_dns_ip:-"172.20.0.10"}
@@ -293,7 +293,7 @@ function write_cilium_cfg() {
     ipv6_addr="${3}"
     filename="${4}"
 
-    cilium_options="--auto-direct-node-routes"
+    cilium_options="--flannel-master-device=cni0 --auto-direct-node-routes"
 
     if [[ "${IPV4}" -eq "1" ]]; then
         if [[ -z "${K8S}" ]]; then

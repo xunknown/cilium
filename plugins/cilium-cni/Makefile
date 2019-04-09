@@ -18,6 +18,6 @@ $(TARGET): $(SOURCES)
 
 install:
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(CNICONFDIR)
-	$(INSTALL) -m 0644 05-cilium-cni.conf $(DESTDIR)$(CNICONFDIR)
+	$(INSTALL) -m 0644 04-flannel-cilium-cni.conflist $(DESTDIR)$(CNICONFDIR)
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(CNIBINDIR)
 	$(INSTALL) -m 0755 $(TARGET) $(DESTDIR)$(CNIBINDIR)

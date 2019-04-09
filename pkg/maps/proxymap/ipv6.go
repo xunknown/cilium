@@ -27,6 +27,8 @@ import (
 
 var Proxy6MapName = "cilium_proxy6"
 
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapKey
 type Proxy6Key struct {
 	SAddr   types.IPv6 `align:"saddr"`
 	DPort   uint16     `align:"dport"`
@@ -41,6 +43,8 @@ func (k *Proxy6Key) HostPort() string {
 	return net.JoinHostPort(k.SAddr.IP().String(), portStr)
 }
 
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapValue
 type Proxy6Value struct {
 	OrigDAddr      types.IPv6 `align:"orig_daddr"`
 	OrigDPort      uint16     `align:"orig_dport"`
@@ -63,18 +67,22 @@ var (
 	// Proxy6Map represents the BPF map for IPv6 proxy
 	Proxy6Map = bpf.NewMap(Proxy6MapName,
 		bpf.MapTypeHash,
+		&Proxy6Key{},
 		int(unsafe.Sizeof(Proxy6Key{})),
+		&Proxy6Value{},
 		int(unsafe.Sizeof(Proxy6Value{})),
 		MaxEntries,
 		0, 0,
-		func(key []byte, value []byte) (bpf.MapKey, bpf.MapValue, error) {
-			k, v := Proxy6Key{}, Proxy6Value{}
+		func(key []byte, value []byte, mapKey bpf.MapKey, mapValue bpf.MapValue) error {
+			k, v := mapKey.(*Proxy6Key), mapValue.(*Proxy6Value)
 
-			if err := bpf.ConvertKeyValue(key, value, &k, &v); err != nil {
-				return nil, nil, err
+			if err := bpf.ConvertKeyValue(key, value, k, v); err != nil {
+				return err
 			}
 
-			return k.ToNetwork(), v.ToNetwork(), nil
+			mapKey=	k.ToNetwork()
+			mapValue=v.ToNetwork()
+			return nil
 		}).WithNonPersistent()
 )
 

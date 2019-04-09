@@ -35,6 +35,32 @@ type TupleKey6 struct {
 	Flags      uint8           `align:"flags"`
 }
 
+// DeepCopyInto is a deepcopy function, copying the receiver, writing into out. in must be non-nil.
+func (in *TupleKey6) DeepCopyInto(out *TupleKey6) {
+	*out = *in
+	out.DestAddr = in.DestAddr
+	out.SourceAddr = in.SourceAddr
+	return
+}
+
+// DeepCopy is a deepcopy function, copying the receiver, creating a new TupleKey6.
+func (in *TupleKey6) DeepCopy() *TupleKey6 {
+	if in == nil {
+		return nil
+	}
+	out := new(TupleKey6)
+	in.DeepCopyInto(out)
+	return out
+}
+
+// DeepCopyMapKey is a deepcopy function, copying the receiver, creating a new bpf.MapKey.
+func (in *TupleKey6) DeepCopyMapKey() bpf.MapKey {
+	if c := in.DeepCopy(); c != nil {
+		return c
+	}
+	return nil
+}
+
 // GetKeyPtr returns the unsafe.Pointer for k.
 func (k *TupleKey6) GetKeyPtr() unsafe.Pointer { return unsafe.Pointer(k) }
 
@@ -107,6 +133,8 @@ func (k TupleKey6) Dump(buffer *bytes.Buffer, reverse bool) bool {
 }
 
 // TupleKey6Global represents the key for IPv6 entries in the global BPF conntrack map.
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapKey
 type TupleKey6Global struct {
 	TupleKey6
 }

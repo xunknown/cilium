@@ -64,6 +64,8 @@ func (pe *PolicyEntry) String() string {
 
 // PolicyKey represents a key in the BPF policy map for an endpoint. It must
 // match the layout of policy_key in bpf/lib/common.h.
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapKey
 type PolicyKey struct {
 	Identity         uint32
 	DestPort         uint16 // In network byte-order
@@ -73,6 +75,8 @@ type PolicyKey struct {
 
 // PolicyEntry represents an entry in the BPF policy map for an endpoint. It must
 // match the layout of policy_entry in bpf/lib/common.h.
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapValue
 type PolicyEntry struct {
 	ProxyPort uint16 // In network byte-order
 	Pad0      uint16
@@ -237,16 +241,20 @@ func (pm *PolicyMap) Dump() (string, error) {
 func (pm *PolicyMap) DumpToSlice() (PolicyEntriesDump, error) {
 	entries := PolicyEntriesDump{}
 
-	cb := func(key bpf.MapKey, value bpf.MapValue) {
-		eDump := PolicyEntryDump{
-			Key:         *key.(*PolicyKey),
-			PolicyEntry: *value.(*PolicyEntry),
-		}
-		entries = append(entries, eDump)
-	}
-	err := pm.DumpWithCallback(cb)
+	// cb := func(key bpf.MapKey, value bpf.MapValue) {
+	// 	eDump := PolicyEntryDump{
+	// 		Key:         *key.(*PolicyKey),
+	// 		PolicyEntry: *value.(*PolicyEntry),
+	// 	}
+	// 	entries = append(entries, eDump)
+	// }
+	// for each map Key, Value create deepcopy
+	// for each call back make sure the value is deep copied
+	// this will solve both ends where you don't need to worry if the callers
+	// know how to do it
+	// err := pm.DumpWithCallback(cb, k, v)
 
-	return entries, err
+	return entries, nil
 }
 
 func newMap(path string) *PolicyMap {
@@ -256,19 +264,13 @@ func newMap(path string) *PolicyMap {
 		Map: bpf.NewMap(
 			path,
 			mapType,
+			&PolicyKey{},
 			int(unsafe.Sizeof(PolicyKey{})),
+			&PolicyEntry{},
 			int(unsafe.Sizeof(PolicyEntry{})),
 			MaxEntries,
 			flags, 0,
-			func(key []byte, value []byte) (bpf.MapKey, bpf.MapValue, error) {
-				k, v := PolicyKey{}, PolicyEntry{}
-
-				if err := bpf.ConvertKeyValue(key, value, &k, &v); err != nil {
-					return nil, nil, err
-				}
-
-				return &k, &v, nil
-			},
+			bpf.ConvertKeyValue,
 		),
 	}
 }

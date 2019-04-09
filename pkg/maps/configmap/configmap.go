@@ -85,6 +85,8 @@ func (f Flags) String() string {
 // Key is the key used to index into the config map for an endpoint.
 //
 // Must be in sync with the key of CONFIG_MAP in <bpf/lib/maps.h>
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapKey
 type Key struct {
 	Bits uint32
 }
@@ -108,6 +110,8 @@ func (cfg *EndpointConfig) String() string {
 // EndpointConfig represents the value of the endpoint's BPF map.
 //
 // Must be in sync with struct ep_config in <bpf/lib/common.h>
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapValue
 type EndpointConfig struct {
 	Flags Flags `align:"flags"`
 	// NOTE: everything below this comment is not plumbed yet. This will be done
@@ -169,19 +173,15 @@ func OpenMapWithName(path string) (*EndpointConfigMap, bool, error) {
 
 	newMap := bpf.NewMap(path,
 		bpf.BPF_MAP_TYPE_ARRAY,
+		&Key{},
 		int(unsafe.Sizeof(uint32(0))),
+		&EndpointConfig{},
 		int(unsafe.Sizeof(EndpointConfig{})),
 		MaxEntries,
 		0,
 		0,
-		func(key []byte, value []byte) (bpf.MapKey, bpf.MapValue, error) {
-			k, v := Key{}, EndpointConfig{}
-
-			if err := bpf.ConvertKeyValue(key, value, &k, &v); err != nil {
-				return nil, nil, err
-			}
-			return &k, &v, nil
-		}).WithCache()
+		bpf.ConvertKeyValue,
+	).WithCache()
 
 	isNewMap, err := newMap.OpenOrCreate()
 

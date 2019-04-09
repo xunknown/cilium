@@ -17,6 +17,7 @@
 package ctmap
 
 import (
+	"github.com/cilium/cilium/pkg/bpf"
 	"strings"
 	"testing"
 	"unsafe"
@@ -63,5 +64,24 @@ func (t *CTMapTestSuite) TestInit(c *C) {
 				c.Assert(info.maxEntries, Equals, option.CTMapEntriesGlobalAnyDefault)
 			}
 		}
+	}
+}
+
+func foo(k1, v1 interface{}) (bpf.MapKey, bpf.MapValue) {
+	k := k1.(tuple.TupleKey4Global)
+	v := v1.(CtEntry)
+	return &k, &v
+}
+
+func BenchmarkClientServerParallel4(c *testing.B) {
+	ks := make([]bpf.MapKey, 1)
+	kv := make([]bpf.MapValue, 1)
+	k1 := tuple.TupleKey4Global{}
+	v1 := CtEntry{}
+	c.ResetTimer()
+	for i := 0; i < c.N; i++ {
+		k, v := foo(k1, v1)
+		ks[0] = k
+		kv[0] = v
 	}
 }

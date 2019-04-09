@@ -28,3 +28,9 @@ func (v4 IPv4) IP() net.IP {
 func (v4 IPv4) String() string {
 	return v4.IP().String()
 }
+
+// DeepCopyInto is a deepcopy function, copying the receiver, writing into out. in must be non-nil.
+func (in *IPv4) DeepCopyInto(out *IPv4) {
+	copy(out[:], in[:])
+	return
+}

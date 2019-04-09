@@ -40,19 +40,13 @@ var (
 	// LXCMap represents the BPF map for endpoints
 	LXCMap = bpf.NewMap(MapName,
 		bpf.MapTypeHash,
+		&EndpointKey{},
 		int(unsafe.Sizeof(EndpointKey{})),
+		&EndpointInfo{},
 		int(unsafe.Sizeof(EndpointInfo{})),
 		MaxEntries,
 		0, 0,
-		func(key []byte, value []byte) (bpf.MapKey, bpf.MapValue, error) {
-			k, v := EndpointKey{}, EndpointInfo{}
-
-			if err := bpf.ConvertKeyValue(key, value, &k, &v); err != nil {
-				return nil, nil, err
-			}
-
-			return &k, &v, nil
-		},
+		bpf.ConvertKeyValue,
 	).WithCache()
 )
 
@@ -98,9 +92,19 @@ type EndpointFrontend interface {
 	GetBPFValue() (*EndpointInfo, error)
 }
 
+type pad [4]uint32
+
+// DeepCopyInto is a deepcopy function, copying the receiver, writing into out. in must be non-nil.
+func (in *pad) DeepCopyInto(out *pad) {
+	copy(out[:], in[:])
+	return
+}
+
 // EndpointInfo represents the value of the endpoints BPF map.
 //
 // Must be in sync with struct endpoint_info in <bpf/lib/common.h>
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapValue
 type EndpointInfo struct {
 	IfIndex uint32 `align:"ifindex"`
 	Unused  uint16 `align:"unused"`
@@ -108,14 +112,16 @@ type EndpointInfo struct {
 	Flags   uint32 `align:"flags"`
 	// go alignment
 	_       uint32
-	MAC     MAC       `align:"mac"`
-	NodeMAC MAC       `align:"node_mac"`
-	Pad     [4]uint32 `align:"pad"`
+	MAC     MAC `align:"mac"`
+	NodeMAC MAC `align:"node_mac"`
+	Pad     pad `align:"pad"`
 }
 
 // GetValuePtr returns the unsafe pointer to the BPF value
 func (v *EndpointInfo) GetValuePtr() unsafe.Pointer { return unsafe.Pointer(v) }
 
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapKey
 type EndpointKey struct {
 	bpf.EndpointKey
 }
@@ -213,7 +219,7 @@ func DeleteElement(f EndpointFrontend) []error {
 func DumpToMap() (map[string]*EndpointInfo, error) {
 	m := map[string]*EndpointInfo{}
 	callback := func(key bpf.MapKey, value bpf.MapValue) {
-		if info, ok := value.(*EndpointInfo); ok {
+		if info, ok := value.DeepCopyMapValue().(*EndpointInfo); ok {
 			if endpointKey, ok := key.(*EndpointKey); ok {
 				m[endpointKey.ToIP().String()] = info
 			}

@@ -134,7 +134,7 @@ func (l *BPFListener) OnIPIdentityCacheChange(modType ipcache.CacheModification,
 //
 // Must be called while holding ipcache.IPIdentityCache.Lock for reading.
 func updateStaleEntriesFunction(keysToRemove map[string]*ipcacheMap.Key) bpf.DumpCallback {
-	return func(key bpf.MapKey, value bpf.MapValue) {
+	return func(key bpf.MapKey, _ bpf.MapValue) {
 		k := key.(*ipcacheMap.Key)
 		keyToIP := k.String()
 
@@ -144,7 +144,7 @@ func updateStaleEntriesFunction(keysToRemove map[string]*ipcacheMap.Key) bpf.Dum
 			case ipcache.FromKVStore, ipcache.FromAgentLocal:
 				// Cannot delete from map during callback because DumpWithCallback
 				// RLocks the map.
-				keysToRemove[keyToIP] = k
+				keysToRemove[keyToIP] = k.DeepCopy()
 			}
 		}
 	}

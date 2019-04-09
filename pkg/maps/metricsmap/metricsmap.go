@@ -64,14 +64,26 @@ var direction = map[uint8]string{
 	2: "EGRESS",
 }
 
+type pad [3]uint16
+
+// DeepCopyInto is a deepcopy function, copying the receiver, writing into out. in must be non-nil.
+func (in *pad) DeepCopyInto(out *pad) {
+	copy(out[:], in[:])
+	return
+}
+
 // Key must be in sync with struct metrics_key in <bpf/lib/common.h>
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapKey
 type Key struct {
-	Reason   uint8     `align:"reason"`
-	Dir      uint8     `align:"dir"`
-	Reserved [3]uint16 `align:"reserved"`
+	Reason   uint8 `align:"reason"`
+	Dir      uint8 `align:"dir"`
+	Reserved pad   `align:"reserved"`
 }
 
 // Value must be in sync with struct metrics_value in <bpf/lib/common.h>
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=github.com/cilium/cilium/pkg/bpf.MapValue
 type Value struct {
 	Count uint64 `align:"count"`
 	Bytes uint64 `align:"bytes"`
@@ -260,16 +272,12 @@ func init() {
 	Metrics = bpf.NewMap(
 		MapName,
 		bpf.BPF_MAP_TYPE_PERCPU_HASH,
+		&Key{},
 		int(unsafe.Sizeof(Key{})),
+		&Value{},
 		int(unsafe.Sizeof(Value{})),
 		MaxEntries,
 		0, 0,
-		func(key []byte, value []byte) (bpf.MapKey, bpf.MapValue, error) {
-			k, v := Key{}, Value{}
-
-			if err := bpf.ConvertKeyValue(key, value, &k, &v); err != nil {
-				return nil, nil, err
-			}
-			return &k, &v, nil
-		})
+		bpf.ConvertKeyValue,
+	)
 }

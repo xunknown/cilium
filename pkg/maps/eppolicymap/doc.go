@@ -19,4 +19,5 @@
 // where the program has a direct lookup of the policy because each
 // program is attached to an endpoint, socket programs run on all sockets
 // regardless of endpoint.
+// +groupName=maps
 package eppolicymap
