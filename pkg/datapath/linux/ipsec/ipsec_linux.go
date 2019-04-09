@@ -125,7 +125,6 @@ func ipSecReplacePolicyInFwd(src, dst *net.IPNet, dir netlink.Dir) error {
 	if key == nil {
 		return fmt.Errorf("IPSec key missing")
 	}
-	spiWide = uint32(key.Spi)
 
 	policy := ipSecNewPolicy()
 	policy.Dir = dir
@@ -135,6 +134,7 @@ func ipSecReplacePolicyInFwd(src, dst *net.IPNet, dir netlink.Dir) error {
 	// egress however we need to select the key using the endpoint ID. To
 	// indicate this to the stack we use an extra byte and need a wider mask.
 	if dir == netlink.XFRM_DIR_OUT {
+		spiWide = uint32(key.Spi)
 		mask = linux_defaults.IPsecMarkMask
 	} else {
 		mask = linux_defaults.IPsecMarkMaskIn
