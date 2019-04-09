@@ -251,6 +251,7 @@ func updateMasterService(fe ServiceKey, nbackends int, nonZeroWeights uint16) er
 // legacy and v2).
 func UpdateService(fe ServiceKey, backends []ServiceValue,
 	addRevNAT bool, revNATID int,
+	isLegacySVCEnabled bool,
 	acquireBackendID func(loadbalancer.L3n4Addr) (loadbalancer.BackendID, error),
 	releaseBackendID func(loadbalancer.BackendID)) error {
 
@@ -297,10 +298,12 @@ func UpdateService(fe ServiceKey, backends []ServiceValue,
 		return err
 	}
 
-	// Update the legacy service BPF maps
-	if err := updateServiceLegacyLocked(fe, besValues, addRevNAT, revNATID,
-		weights, nNonZeroWeights); err != nil {
-		return err
+	if isLegacySVCEnabled {
+		// Update the legacy service BPF maps
+		if err := updateServiceLegacyLocked(fe, besValues, addRevNAT, revNATID,
+			weights, nNonZeroWeights); err != nil {
+			return err
+		}
 	}
 
 	// Update the v2 service BPF maps
