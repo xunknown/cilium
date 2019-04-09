@@ -298,6 +298,23 @@ func UpdateService(fe ServiceKey, backends []ServiceValue,
 		return err
 	}
 
+	// TODO(brb) move to a separe function
+	if addRevNAT {
+		zeroValue := fe.NewValue().(ServiceValue)
+		zeroValue.SetRevNat(revNATID)
+		revNATKey := zeroValue.RevNatKey()
+		revNATValue := fe.RevNatValue()
+
+		if err := updateRevNatLocked(revNATKey, revNATValue); err != nil {
+			return fmt.Errorf("unable to update reverse NAT %+v with value %+v, %s", revNATKey, revNATValue, err)
+		}
+		defer func() {
+			if err != nil {
+				deleteRevNatLocked(revNATKey)
+			}
+		}()
+	}
+
 	if isLegacySVCEnabled {
 		besValues := svc.getBackends()
 		// Update the legacy service BPF maps
@@ -400,22 +417,6 @@ func updateServiceLegacyLocked(fe ServiceKey, besValues []ServiceValue,
 		if err := updateServiceEndpoint(fe, be); err != nil {
 			return fmt.Errorf("unable to update service %+v with the value %+v: %s", fe, be, err)
 		}
-	}
-
-	if addRevNAT {
-		zeroValue := fe.NewValue().(ServiceValue)
-		zeroValue.SetRevNat(revNATID)
-		revNATKey := zeroValue.RevNatKey()
-		revNATValue := fe.RevNatValue()
-
-		if err := updateRevNatLocked(revNATKey, revNATValue); err != nil {
-			return fmt.Errorf("unable to update reverse NAT %+v with value %+v, %s", revNATKey, revNATValue, err)
-		}
-		defer func() {
-			if err != nil {
-				deleteRevNatLocked(revNATKey)
-			}
-		}()
 	}
 
 	err = updateMasterService(fe, len(besValues), nNonZeroWeights)
