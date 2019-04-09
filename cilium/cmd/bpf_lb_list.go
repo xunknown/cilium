@@ -81,7 +81,7 @@ var bpfLBListCmd = &cobra.Command{
 				if backendID == 0 {
 					ip := "0.0.0.0"
 					if svcKey.IsIPv6() {
-						ip = "[0]"
+						ip = "[::]"
 					}
 					entry = fmt.Sprintf("%s:%d (%d)", ip, 0, revNATID)
 				} else if backend, found := backendMap[backendID]; !found {
