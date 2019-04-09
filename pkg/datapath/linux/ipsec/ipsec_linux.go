@@ -184,7 +184,13 @@ func ipsecDeleteXfrmSpi(spi uint8) {
 		if p.Tmpls[0].Spi != int(spi) &&
 			((p.Mark != nil && (p.Mark.Value&linux_defaults.RouteMarkMask) == linux_defaults.RouteMarkDecrypt) ||
 				(p.Mark != nil && (p.Mark.Value&linux_defaults.RouteMarkMask) == linux_defaults.RouteMarkEncrypt)) {
-			if err := netlink.XfrmPolicyDel(&p); err != nil {
+			delPolicy := netlink.XfrmPolicy{
+				Src:  p.Src,
+				Dst:  p.Dst,
+				Dir:  p.Dir,
+				Mark: p.Mark,
+			}
+			if err := netlink.XfrmPolicyDel(&delPolicy); err != nil {
 				scopedLog.WithError(err).Warning("deleting old xfrm policy failed")
 			}
 		}
