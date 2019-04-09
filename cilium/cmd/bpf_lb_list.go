@@ -57,15 +57,14 @@ var bpfLBListCmd = &cobra.Command{
 			// IDs are allocated from the same pool regardless the protocol
 			backendMap := make(map[loadbalancer.BackendID]lbmap.BackendValue)
 
-			// TODO(brb) DumpWithCallbackIfExists
 			parseBackendEntry := func(key bpf.MapKey, value bpf.MapValue) {
 				id := key.(lbmap.BackendKey).GetID()
 				backendMap[id] = value.(lbmap.BackendValue)
 			}
-			if err := lbmap.Backend4Map.DumpWithCallback(parseBackendEntry); err != nil {
+			if err := lbmap.Backend4Map.DumpWithCallbackIfExists(parseBackendEntry); err != nil {
 				Fatalf("Unable to dump IPv4 backends table: %s", err)
 			}
-			if err := lbmap.Backend6Map.DumpWithCallback(parseBackendEntry); err != nil {
+			if err := lbmap.Backend6Map.DumpWithCallbackIfExists(parseBackendEntry); err != nil {
 				Fatalf("Unable to dump IPv6 backends table: %s", err)
 			}
 
