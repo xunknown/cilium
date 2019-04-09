@@ -71,11 +71,15 @@ func (p *IPSecSuitePrivileged) TestUpsertIPSecEquals(c *C) {
 	_, remote, err := net.ParseCIDR("1.2.3.4/16")
 	c.Assert(err, IsNil)
 
+	auth_key, err := decodeIPSecKey("0123456789abcdef0123456789abcdef")
+	c.Assert(err, IsNil)
+	crypt_key, err := decodeIPSecKey("0123456789abcdef0123456789abcdef")
+	c.Assert(err, IsNil)
 	key := &ipSecKey{
 		Spi:   1,
 		ReqID: 1,
-		Auth:  &netlink.XfrmStateAlgo{Name: "hmac(sha256)", Key: []byte("0123456789abcdef0123456789abcdef")},
-		Crypt: &netlink.XfrmStateAlgo{Name: "cbc(aes)", Key: []byte("0123456789abcdef0123456789abcdef")},
+		Auth:  &netlink.XfrmStateAlgo{Name: "hmac(sha256)", Key: auth_key},
+		Crypt: &netlink.XfrmStateAlgo{Name: "cbc(aes)", Key: crypt_key},
 	}
 
 	ipSecKeysGlobal["1.2.3.4"] = key
@@ -95,11 +99,15 @@ func (p *IPSecSuitePrivileged) TestUpsertIPSecEndpoint(c *C) {
 	_, remote, err := net.ParseCIDR("1.2.3.4/16")
 	c.Assert(err, IsNil)
 
+	auth_key, err := decodeIPSecKey("0123456789abcdef0123456789abcdef")
+	c.Assert(err, IsNil)
+	crypt_key, err := decodeIPSecKey("0123456789abcdef0123456789abcdef")
+	c.Assert(err, IsNil)
 	key := &ipSecKey{
 		Spi:   1,
 		ReqID: 1,
-		Auth:  &netlink.XfrmStateAlgo{Name: "hmac(sha256)", Key: []byte("0123456789abcdef0123456789abcdef")},
-		Crypt: &netlink.XfrmStateAlgo{Name: "cbc(aes)", Key: []byte("0123456789abcdef0123456789abcdef")},
+		Auth:  &netlink.XfrmStateAlgo{Name: "hmac(sha256)", Key: auth_key},
+		Crypt: &netlink.XfrmStateAlgo{Name: "cbc(aes)", Key: crypt_key},
 	}
 
 	ipSecKeysGlobal["1.1.3.4"] = key
