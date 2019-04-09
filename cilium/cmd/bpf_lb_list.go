@@ -86,7 +86,11 @@ var bpfLBListCmd = &cobra.Command{
 				} else if backend, found := backendMap[backendID]; !found {
 					entry = fmt.Sprintf("backend %d not found", backendID)
 				} else {
-					entry = fmt.Sprintf("%s:%d (%d)", backend.GetAddress(),
+					fmtStr := "%s:%d (%d)"
+					if svcKey.IsIPv6() {
+						fmtStr = "[%s]:%d (%d)"
+					}
+					entry = fmt.Sprintf(fmtStr, backend.GetAddress(),
 						backend.GetPort(), revNATID)
 				}
 
