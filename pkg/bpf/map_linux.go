@@ -499,22 +499,31 @@ func (m *Map) DumpWithCallback(cb DumpCallback) error {
 	mk := m.MapKey.DeepCopyMapKey()
 	mv := m.MapValue.DeepCopyMapValue()
 
+	bpfCurrentKey := bpfAttrMapOpElem{
+		mapFd: uint32(m.fd),
+		key:   uint64(uintptr(unsafe.Pointer(&key[0]))),
+		value: uint64(uintptr(unsafe.Pointer(&nextKey[0]))),
+	}
+	bpfCurrentKeyPtr := uintptr(unsafe.Pointer(&bpfCurrentKey))
+	bpfCurrentKeySize := unsafe.Sizeof(bpfCurrentKey)
+
+	bpfNextKey := bpfAttrMapOpElem{
+		mapFd: uint32(m.fd),
+		key:   uint64(uintptr(unsafe.Pointer(&nextKey[0]))),
+		value: uint64(uintptr(unsafe.Pointer(&value[0]))),
+	}
+
+	bpfNextKeyPtr := uintptr(unsafe.Pointer(&bpfNextKey))
+	bpfNextKeySize := unsafe.Sizeof(bpfNextKey)
+
 	for {
-		err := GetNextKey(
-			m.fd,
-			unsafe.Pointer(&key[0]),
-			unsafe.Pointer(&nextKey[0]),
-		)
+		err := GetNextKeyCT(m.fd, bpfCurrentKeyPtr, bpfCurrentKeySize)
 
 		if err != nil {
 			break
 		}
 
-		err = LookupElement(
-			m.fd,
-			unsafe.Pointer(&nextKey[0]),
-			unsafe.Pointer(&value[0]),
-		)
+		err = LookupElementCT(m.fd, bpfNextKeyPtr, bpfNextKeySize)
 
 		if err != nil {
 			return err
@@ -568,15 +577,33 @@ func (m *Map) DumpReliablyWithCallback(cb DumpCallback, stats *DumpStats) error 
 		return nil
 	}
 
-	mapKey := m.MapKey.DeepCopyMapKey()
-	mapValue := m.MapValue.DeepCopyMapValue()
+	mk := m.MapKey.DeepCopyMapKey()
+	mv := m.MapValue.DeepCopyMapValue()
+
+	bpfCurrentKey := bpfAttrMapOpElem{
+		mapFd: uint32(m.fd),
+		key:   uint64(uintptr(unsafe.Pointer(&currentKey[0]))),
+		value: uint64(uintptr(unsafe.Pointer(&value[0]))),
+	}
+	bpfCurrentKeyPtr := uintptr(unsafe.Pointer(&bpfCurrentKey))
+	bpfCurrentKeySize := unsafe.Sizeof(bpfCurrentKey)
+
+	bpfNextKey := bpfAttrMapOpElem{
+		mapFd: uint32(m.fd),
+		key:   uint64(uintptr(unsafe.Pointer(&currentKey[0]))),
+		value: uint64(uintptr(unsafe.Pointer(&nextKey[0]))),
+	}
+
+	bpfNextKeyPtr := uintptr(unsafe.Pointer(&bpfNextKey))
+	bpfNextKeySize := unsafe.Sizeof(bpfNextKey)
+
 	for stats.Lookup = 1; stats.Lookup <= stats.MaxEntries; stats.Lookup++ {
 		// currentKey was returned by GetNextKey() so we know it existed in the map, but it may have been
 		// deleted by a concurrent map operation. If currentKey is no longer in the map, nextKey will be
 		// the first key in the map again. Use the nextKey only if we still find currentKey in the Lookup()
 		// after the GetNextKey() call, this way we know nextKey is NOT the first key in the map.
-		nextKeyValid := GetNextKey(m.fd, unsafe.Pointer(&currentKey[0]), unsafe.Pointer(&nextKey[0]))
-		err := LookupElement(m.fd, unsafe.Pointer(&currentKey[0]), unsafe.Pointer(&value[0]))
+		nextKeyValid := GetNextKeyCT(m.fd, bpfNextKeyPtr, bpfNextKeySize)
+		err := LookupElementCT(m.fd, bpfCurrentKeyPtr, bpfCurrentKeySize)
 		if err != nil {
 			stats.LookupFailed++
 
@@ -597,14 +624,14 @@ func (m *Map) DumpReliablyWithCallback(cb DumpCallback, stats *DumpStats) error 
 			continue
 		}
 
-		err = m.dumpParser(currentKey, value, mapKey, mapValue)
+		err = m.dumpParser(currentKey, value, mk, mv)
 		if err != nil {
 			stats.Interrupted++
 			return err
 		}
 
 		if cb != nil {
-			cb(mapKey, mapValue)
+			cb(mk, mv)
 		}
 
 		if nextKeyValid != nil {
